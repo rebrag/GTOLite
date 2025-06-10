@@ -1,21 +1,17 @@
-// src/FolderSelector.tsx
+// src/components/FolderSelector.tsx
 import React, { useState, useEffect } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "../firebase"; // Using the same Firebase config as in LoginSignup
-import { logUserAction } from "..//logEvent"; // Adjust the path based on your project structure
 
 interface FolderSelectorProps {
   folders: string[];
-  currentFolder: string; // Current selected folder name
+  currentFolder: string;
   onFolderSelect: (folder: string) => void;
 }
 
-// Helper to convert underscores to spaces and display friendlier names.
+// Helper to convert underscores to spaces and display friendlier names
 function getDisplayFolderName(folder: string): string {
   const parts = folder.split("_");
   if (parts.length === 0) return folder;
 
-  // When exactly two parts, check for a leading number in the first part.
   if (parts.length === 2) {
     const firstMatch = parts[0].match(/^(\d+)/);
     if (firstMatch) {
@@ -25,7 +21,6 @@ function getDisplayFolderName(folder: string): string {
     return folder.replace(/_/g, " ");
   }
 
-  // For more than two parts, if every part starts with the same number then use special text
   const firstMatch = parts[0].match(/^(\d+)/);
   if (!firstMatch) {
     return folder.replace(/_/g, " ");
@@ -38,10 +33,10 @@ function getDisplayFolderName(folder: string): string {
   if (allSame) {
     return `${firstNum}bb All`;
   }
+
   return folder.replace(/_/g, " ");
 }
 
-// Helper: Check if folder qualifies as "allSame"
 function isAllSameFolder(folder: string): boolean {
   const parts = folder.split("_");
   if (parts.length === 0) return false;
@@ -54,14 +49,12 @@ function isAllSameFolder(folder: string): boolean {
   });
 }
 
-// Helper: Check if folder is a HU simulation folder (exactly two parts and first part starts with digits)
 function isHUSimFolder(folder: string): boolean {
   const parts = folder.split("_");
   if (parts.length !== 2) return false;
   return /^\d+/.test(parts[0]);
 }
 
-// Highlight matching text in the folder name
 const highlightMatch = (folder: string, query: string): React.ReactNode => {
   if (!query) return <>{folder}</>;
   const lowerFolder = folder.toLowerCase();
@@ -85,12 +78,12 @@ const FolderSelector: React.FC<FolderSelectorProps> = ({
   currentFolder,
   onFolderSelect,
 }) => {
-  const [user] = useAuthState(auth);
   const [inputValue, setInputValue] = useState("");
   const [filteredFolders, setFilteredFolders] = useState<string[]>(folders);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const [isSmallViewport, setIsSmallViewport] = useState(window.innerWidth < 440);
+
   useEffect(() => {
     const handleResize = () => setIsSmallViewport(window.innerWidth < 440);
     window.addEventListener("resize", handleResize);
@@ -99,48 +92,37 @@ const FolderSelector: React.FC<FolderSelectorProps> = ({
 
   useEffect(() => {
     const sortedFolders = [...folders]
-  .filter((folder) =>
-    folder.replace(/_/g, " ").toLowerCase().includes(inputValue.toLowerCase())
-  )
-  .sort((a, b) => {
-    // Send HU simulations to the bottom
-    const aHU = isHUSimFolder(a);
-    const bHU = isHUSimFolder(b);
-    if (aHU && !bHU) return 1;
-    if (!aHU && bHU) return -1;
+      .filter((folder) =>
+        folder.replace(/_/g, " ").toLowerCase().includes(inputValue.toLowerCase())
+      )
+      .sort((a, b) => {
+        const aHU = isHUSimFolder(a);
+        const bHU = isHUSimFolder(b);
+        if (aHU && !bHU) return 1;
+        if (!aHU && bHU) return -1;
 
-    // Prioritize folders that are "allSame"
-    const aAllSame = isAllSameFolder(a);
-    const bAllSame = isAllSameFolder(b);
-    if (aAllSame && !bAllSame) return -1;
-    if (!aAllSame && bAllSame) return 1;
+        const aAllSame = isAllSameFolder(a);
+        const bAllSame = isAllSameFolder(b);
+        if (aAllSame && !bAllSame) return -1;
+        if (!aAllSame && bAllSame) return 1;
 
-    // Otherwise, sort by string length
-    return a.length - b.length;
-  });
+        return a.length - b.length;
+      });
 
-setFilteredFolders(sortedFolders);
-setHighlightedIndex(sortedFolders.length > 0 ? 0 : -1);
-
+    setFilteredFolders(sortedFolders);
+    setHighlightedIndex(sortedFolders.length > 0 ? 0 : -1);
   }, [inputValue, folders]);
 
-  // Handle folder selection; also log the user action if a folder is selected
   const handleSelect = (folder: string) => {
     if (folder !== currentFolder) {
       setInputValue("");
       onFolderSelect(folder);
-      // Log the action if the user is authenticated
-      if (user) {
-        //console.log("Admin UID:", user.uid);
-        // Using email if available, otherwise the UID
-        logUserAction(user.email ?? user.uid, "Opened Folder", folder);
-      }
+      console.log(`Folder selected: ${folder}`);
     }
     setShowDropdown(false);
     setHighlightedIndex(-1);
   };
 
-  // Keyboard handling for navigation in the dropdown
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       setShowDropdown(false);
@@ -158,20 +140,18 @@ setHighlightedIndex(sortedFolders.length > 0 ? 0 : -1);
       if (highlightedIndex >= 0 && highlightedIndex < filteredFolders.length) {
         handleSelect(filteredFolders[highlightedIndex]);
       }
-    } else if (e.key !== "Escape") {
+    } else {
       setShowDropdown(true);
     }
   };
 
-  // Toggle dropdown visibility on click of the arrow button
   const toggleDropdown = () => {
     setShowDropdown((prev) => !prev);
   };
 
   return (
-    
     <div
-      data-intro-target="folder-selector"   // ⭐️ Intro.js can now find it
+      data-intro-target="folder-selector"
       className="flex justify-center h-10vh"
     >
       <div className="select-none relative w-full max-w-lg">
@@ -187,7 +167,7 @@ setHighlightedIndex(sortedFolders.length > 0 ? 0 : -1);
             className="shadow-md hover:bg-blue-100 w-full px-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring focus:border-blue-300"
           />
           <button
-            onMouseDown={(e) => e.preventDefault()} // Prevent input blur on click
+            onMouseDown={(e) => e.preventDefault()}
             onClick={toggleDropdown}
             className="absolute inset-y-0 right-0 flex items-center px-3 focus:outline-none"
             type="button"

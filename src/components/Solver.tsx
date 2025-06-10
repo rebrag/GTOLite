@@ -12,7 +12,7 @@ import { JsonData } from "../utils/utils";
 import Line from "./Line";
 import { Steps } from 'intro.js-react';
 import 'intro.js/introjs.css';
-import { User } from "firebase/auth";
+// import { User } from "firebase/auth";
 import LoginSignupModal from "./LoginSignupModal";
 
 const tourSteps = [
@@ -20,8 +20,8 @@ const tourSteps = [
   { element: '[data-intro-target="color-key-btn"]', intro: 'Click on an action to see how other players should react.', position: 'bottom'}, 
 ];
 
-const Solver = ({ user }: { user: User | null }) => {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const Solver = () => {
+  // const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const { windowWidth, windowHeight } = useWindowDimensions();
   const [folder, setFolder] = useState<string>("23UTG_23UTG1_23LJ_23HJ_23CO_23BTN_23SB_23BB");
   const [plateData, setPlateData] = useState<Record<string, JsonData>>({});
@@ -46,6 +46,9 @@ const Solver = ({ user }: { user: User | null }) => {
   const [pendingFolder, setPendingFolder] = useState<string | null>(null);
   const [showLoginOverlay, setShowLoginOverlay] = useState(false);
   const tourBooted = useRef(localStorage.getItem('tourSeen') === '1');
+  const plateUrl = (folderName: string, fileName: string) =>
+  `/data/${folderName}/${fileName}`;
+
 
 
   const defaultPlateNames = useMemo(() => {
@@ -138,8 +141,8 @@ const Solver = ({ user }: { user: User | null }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder]);
 
-  const { folders, error: folderError } = useFolders(API_BASE_URL);
-  const { files: availableJsonFiles, error: filesError } = useFiles(API_BASE_URL, folder);
+  const { folders, error: folderError } = useFolders();
+  const { files: availableJsonFiles, error: filesError } = useFiles(folder);
 
   const displayPlates = useMemo(
     () => positionOrder.map((pos) => plateMapping[pos] || ""),
@@ -160,84 +163,87 @@ const Solver = ({ user }: { user: User | null }) => {
     }
   }, [tourReady]);
 
-  useEffect(() => {
-  if (user && pendingFolder) {
+  // No longer depends on `user` or `.env` secrets
+
+// Remove the `user` check in this effect
+useEffect(() => {
+  if (pendingFolder) {
     handleFolderSelect(pendingFolder);
     setPendingFolder(null);
   }
 // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [user, pendingFolder]);
+}, [pendingFolder]);
 
-  useLayoutEffect(() => {
-    setLoadedPlates(defaultPlateNames);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder]);
+useLayoutEffect(() => {
+  setLoadedPlates(defaultPlateNames);
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [folder]);
 
-  // Keep plateMapping consistent with loadedPlates.
-  useEffect(() => {
-    setPlateMapping((prev) => {
-      const filtered: Record<string, string> = {};
-      Object.keys(prev).forEach((pos) => {
-        if (loadedPlates.includes(prev[pos])) {
-          filtered[pos] = prev[pos];
-        }
-      });
-      return filtered;
+// Keep plateMapping consistent with loadedPlates.
+useEffect(() => {
+  setPlateMapping((prev) => {
+    const filtered: Record<string, string> = {};
+    Object.keys(prev).forEach((pos) => {
+      if (loadedPlates.includes(prev[pos])) {
+        filtered[pos] = prev[pos];
+      }
     });
-  }, [loadedPlates]);
+    return filtered;
+  });
+}, [loadedPlates]);
 
-  // Fetch plate data for any missing plates.
-  useEffect(() => {
-    const platesToFetch = loadedPlates.filter((plate) => !(plate in plateData));
-    if (platesToFetch.length === 0) {
-      setLoading(false);
-      return;
-    }
-    let didTimeout = false;
-    const timer = setTimeout(() => {
-      didTimeout = true;
-      setLoading(true);
-    }, 700);
-    const source = axios.CancelToken.source();
-    Promise.all(
-      platesToFetch.map((plate) =>
-        axios
-          .get(`${API_BASE_URL}/api/Files/${folderRef.current}/${plate}`, { cancelToken: source.token })
-          .then((res) => ({ plate, data: res.data }))
-          .catch(() => null)
-      )
+// Fetch plate data for any missing plates.
+useEffect(() => {
+  const platesToFetch = loadedPlates.filter((plate) => !(plate in plateData));
+  if (platesToFetch.length === 0) {
+    setLoading(false);
+    return;
+  }
+
+  let didTimeout = false;
+  const timer = setTimeout(() => {
+    didTimeout = true;
+    setLoading(true);
+  }, 700);
+
+  const source = axios.CancelToken.source();
+  Promise.all(
+    platesToFetch.map((plate) =>
+      axios
+        .get(plateUrl(folder, plate), { cancelToken: source.token })
+        .then((res) => ({ plate, data: res.data }))
+        .catch(() => null)
     )
-      .then((results) => {
-        const validResults = results.filter(
-          (r): r is { plate: string; data: JsonData } => r !== null
-        );
-        if (validResults.length > 0) {
-          const newPlateData: Record<string, JsonData> = {};
-          const newPlateMapping: Record<string, string> = {};
-          validResults.forEach(({ plate, data }) => {
-            newPlateData[plate] = data;
-            newPlateMapping[data.Position] = plate;
-          });
-          setPlateData((prev) => ({ ...prev, ...newPlateData }));
-          setPlateMapping((prev) => ({ ...prev, ...newPlateMapping }));
-        }})
-      .finally(() => {
-        clearTimeout(timer);
-        if (didTimeout) {
-          setLoading(false);
-        }});
-    return () => source.cancel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedPlates, folder]);
+  )
+    .then((results) => {
+      const validResults = results.filter(
+        (r): r is { plate: string; data: JsonData } => r !== null
+      );
+      if (validResults.length > 0) {
+        const newPlateData: Record<string, JsonData> = {};
+        const newPlateMapping: Record<string, string> = {};
+        validResults.forEach(({ plate, data }) => {
+          newPlateData[plate] = data;
+          newPlateMapping[data.Position] = plate;
+        });
+        setPlateData((prev) => ({ ...prev, ...newPlateData }));
+        setPlateMapping((prev) => ({ ...prev, ...newPlateMapping }));
+      }
+    })
+    .finally(() => {
+      clearTimeout(timer);
+      if (didTimeout) {
+        setLoading(false);
+      }
+    });
 
-  const handleFolderSelect = useCallback(
+  return () => source.cancel();
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [loadedPlates, folder]);
+
+// Remove auth check – allow anyone to select folder
+const handleFolderSelect = useCallback(
   (selectedFolder: string) => {
-    if (!user && selectedFolder !== folder) {
-      setPendingFolder(selectedFolder);
-      setShowLoginOverlay(true);
-      return;
-    }
-
     const newLoadedPlates = defaultPlateNames;
     setLoadedPlates(newLoadedPlates);
     setFolder(selectedFolder);
@@ -252,36 +258,46 @@ const Solver = ({ user }: { user: User | null }) => {
     });
     setAlivePlayers(initialAlive);
   },
-  [user, folder, defaultPlateNames, positionOrder]
+  
+  [defaultPlateNames, positionOrder]
 );
 
 
+
   useEffect(() => {
-    if (!folder) return;
-    axios
-      .get(`${API_BASE_URL}/api/Files/${folder}/metadata.json`)
-      .then((res) => {
-        setMetadata(res.data);
-        const ante = res.data.ante;
-        const initialBets: Record<string, number> = {};
-        if (playerCount === 2) {
-          initialBets["BTN"] = 0.5;
-          initialBets["BB"] = 1;
-        } else {
-          initialBets["SB"] = 0.5;
-          initialBets["BB"] = 1;
-        }
-        setPlayerBets(initialBets);
-        const blindPot = Object.values(initialBets).reduce((sum, b) => sum + b);
-        const totalPot = blindPot + ante;
-        setPotSize(totalPot);
-      })
-      .catch(() => {
-        setMetadata({ name: "", ante: 0, icm: [] });
-        setPlayerBets({ SB: 0.5, BB: 1 });
-        setPotSize(1.5); // default with no ante
-      });
-  }, [folder, API_BASE_URL, playerCount]);
+  if (!folder) return;
+
+  const cancelSource = axios.CancelToken.source();
+
+  axios
+    .get(`/data/${folder}/metadata.json`, { cancelToken: cancelSource.token })
+    .then((res) => {
+      setMetadata(res.data);
+
+      /* --- blind + ante math unchanged --- */
+      const ante = res.data.ante;
+      const initialBets: Record<string, number> = {};
+      if (playerCount === 2) {
+        initialBets["BTN"] = 0.5;
+        initialBets["BB"]  = 1;
+      } else {
+        initialBets["SB"] = 0.5;
+        initialBets["BB"] = 1;
+      }
+      setPlayerBets(initialBets);
+
+      const blindPot = Object.values(initialBets).reduce((sum, b) => sum + b, 0);
+      setPotSize(blindPot + ante);
+    })
+    .catch(() => {
+      setMetadata({ name: "", ante: 0, icm: [] });
+      setPlayerBets({ SB: 0.5, BB: 1 });
+      setPotSize(1.5);          // default with no ante
+    });
+
+  return () => cancelSource.cancel();
+}, [folder, playerCount]);
+
 
   const convertRangeText = (data: JsonData | undefined, action: string): string => {
     if (!data) return "";

@@ -1,40 +1,23 @@
 // src/components/AccountMenu.tsx
-import { auth } from "../firebase";
-import { signOut } from "firebase/auth";
 import { useState } from "react";
 
 const AccountMenu = () => {
-  const user = auth.currentUser;
-  const [error, setError] = useState<string | null>(null);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError(String(err));
-      }
-    }
-  };
+  const [error] = useState<string | null>(null);
 
   return (
     <div>
-      {/* Desktop view: show full account info */}
+      {/* Desktop view – hide or show placeholder user info */}
       <div className="hidden sm:flex items-center space-x-2">
-        <span className="text-sm font-bold">Account:</span>
-        <span className="text-sm">{user?.email}</span>
-        <button onClick={handleLogout} className="text-xs text-blue-500 hover:underline">
-          Logout
-        </button>
+        <span className="text-sm font-bold">Offline Mode</span>
+        <span className="text-sm text-gray-500">(demo)</span>
       </div>
-      {/* Mobile view: show only a small logout button */}
-      <div className="flex sm:hidden ">
-        <button onClick={handleLogout} className="text-xs text-blue-500 cursor-pointer hover:underline">
-          Logout
-        </button>
+
+      {/* Mobile view – no logout needed */}
+      <div className="flex sm:hidden">
+        <span className="text-xs text-gray-500">Offline</span>
       </div>
+
+      {/* Normally you'd show logout errors here */}
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
     </div>
   );
